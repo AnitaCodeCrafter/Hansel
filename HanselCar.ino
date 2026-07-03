@@ -49,7 +49,7 @@ int in3=6;
 int in4=9;
 
 void setup() {
-//Serial.begin(9600);
+Serial.begin(115200);
 //gyroscope
   setupMPU();
   prevTime = millis();
@@ -75,6 +75,7 @@ void setup() {
 }
 
 void loop() {
+  //Backward();
   if (turning){
     updateGyro();
   }
@@ -146,21 +147,6 @@ void Reverse() {
 
   // Work backwards through the saved segments
   for (int i = segmentIndex - 1; i >= 0; i--) {
-    
-    // 1. UNDO THE TURN FIRST
-    angleZ = 0;
-    prevTime = millis(); // Reset gyro timer
-    while (abs(angleZ) < abs(turnLog[i])) {
-      if (turnLog[i] > 0) {
-        Left(); // If we turned right originally (+), turn left to go back
-      } else {
-        Right(); // If we turned left originally (-), turn right to go back
-      }
-      updateGyro();
-    }
-    Stop();
-    delay(200);
-
     // 2. UNDO THE DISTANCE
     returningCount = 0;
     while (returningCount < abs(distanceLog[i])) {
@@ -170,6 +156,20 @@ void Reverse() {
         Forward(); // If we went backward, go forward
       }
       // Note: your pulse() function handles returningCount++
+      delay(5);
+    }
+    Stop();
+    delay(200);
+  // 1. UNDO THE TURN FIRST
+    angleZ = 0;
+    prevTime = millis(); // Reset gyro timer
+    while (abs(angleZ) < abs(turnLog[i])) {
+      if (turnLog[i] > 0) {
+        Right(); // If we turned right originally (+), turn left to go back
+      } else {
+        Left(); // If we turned left originally (-), turn right to go back
+      }
+      updateGyro();
     }
     Stop();
     delay(200);
@@ -191,9 +191,9 @@ void Backward() {
     digitalWrite(in3,HIGH);
     digitalWrite(in4,LOW);
   }
- void Forward() {
+void Forward() {
   prevTime = millis();
-    Serial.println("Forward");
+    //Serial.println("Forward");
     forward = true;
     backward = false;
     turning = false;
@@ -202,8 +202,8 @@ void Backward() {
     digitalWrite(in2,HIGH);
     digitalWrite(in3,LOW);
     digitalWrite(in4,HIGH);
-  }
- void Stop() {
+}
+void Stop() {
   if (!returning) { // Only save segments during recording, not playback
     saveSegment();
   }
@@ -215,7 +215,7 @@ void Backward() {
   digitalWrite(in2,LOW);
   digitalWrite(in3,LOW);
   digitalWrite(in4,LOW);
-  }
+}
   void Left() {
   prevTime = millis();
   if (!turning && !returning) { // Added !returning here
@@ -296,7 +296,12 @@ void updateGyro() {
   float dt = (currentTime - prevTime) / 1000.0;
   prevTime = currentTime;
 
-  angleZ += gyroZ * dt;
+  angleZ += gyroZ;
+  Serial.print("AngleZ = ");
+  Serial.print(angleZ);
+  Serial.print("gyroZ = ");
+  Serial.println(gyroZ);
+
 }
 
 void calibrateGyro(){
@@ -334,7 +339,14 @@ void saveSegment() {
   distanceLog[segmentIndex] = countForward - countBackward;
   
   // Save the angle turned since the last state change
-  turnLog[segmentIndex] = angleZ; 
+  turnLog[segmentIndex] = angleZ;
+
+  Serial.print(" Save Segment index = ");
+  Serial.print(segmentIndex);
+  Serial.print(" Distance = ");
+  Serial.print(distanceLog[segmentIndex]);
+  Serial.print(" angle = ");
+  Serial.println(turnLog[segmentIndex]);
 
   // Reset EVERYTHING for the next segment
   countForward = 0;
