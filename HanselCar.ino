@@ -10,7 +10,10 @@ float segmentStartAngle = 0;
 
 //reverse turns
 #include <Wire.h>
-
+//object detecting
+const int trigPin = 13;
+const int echoPin = 4;
+int objectDist = 0;
 // MPU-6500
 #define MPU_ADDR 0x68
 
@@ -50,6 +53,9 @@ int in4=9;
 
 void setup() {
 Serial.begin(115200);
+// object detecting
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
 //gyroscope
   setupMPU();
   prevTime = millis();
@@ -75,6 +81,7 @@ Serial.begin(115200);
 }
 
 void loop() {
+  //measureObjectDist();
   //Backward();
   if (turning){
     updateGyro();
@@ -103,8 +110,8 @@ void loop() {
 
     uint32_t irValue = IrReceiver.decodedIRData.decodedRawData;
 
-    Serial.print("HEX: ");
-    Serial.println(irValue, HEX);
+    //Serial.print("HEX: ");
+    //Serial.println(irValue, HEX);
 
     if (irValue == 0xB946FF00) {       
       Forward();
@@ -154,6 +161,11 @@ void Reverse() {
         Backward(); // If we went forward, go backward
       } else {
         Forward(); // If we went backward, go forward
+      }
+      measureObjectDist();
+      if (objectDist <= 20){
+        Stop();
+        return;
       }
       // Note: your pulse() function handles returningCount++
       delay(5);
@@ -297,10 +309,12 @@ void updateGyro() {
   prevTime = currentTime;
 
   angleZ += gyroZ;
-  Serial.print("AngleZ = ");
+  /*Serial.print("AngleZ = ");
   Serial.print(angleZ);
   Serial.print("gyroZ = ");
   Serial.println(gyroZ);
+  */
+
 
 }
 
@@ -341,12 +355,13 @@ void saveSegment() {
   // Save the angle turned since the last state change
   turnLog[segmentIndex] = angleZ;
 
-  Serial.print(" Save Segment index = ");
+  /*Serial.print(" Save Segment index = ");
   Serial.print(segmentIndex);
   Serial.print(" Distance = ");
   Serial.print(distanceLog[segmentIndex]);
   Serial.print(" angle = ");
   Serial.println(turnLog[segmentIndex]);
+  */
 
   // Reset EVERYTHING for the next segment
   countForward = 0;
@@ -355,4 +370,28 @@ void saveSegment() {
 
   prevTime = millis();
   segmentIndex++;
+}
+void measureObjectDist() {
+  // Clear the trigger pin
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  
+  // Send a 10-microsecond pulse to trigger the sensor
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Measure the duration of the incoming echo pulse
+  long duration = pulseIn(echoPin, HIGH);
+
+  // Calculate distance: (time * speed of sound) / 2
+  // Speed of sound is approx 0.034 cm/us
+  int objectDistLocal = duration * 0.034 / 2;
+  if (objectDistLocal >= 1){
+    objectDist = objectDistLocal;
+  }
+
+  //Serial.print("Distance: ");
+  //Serial.print(distance);
+  //Serial.println(" cm");
 }
