@@ -1,5 +1,7 @@
 #define MAX_SEGMENTS 20
 
+const int ledPin = 12;
+
 long distanceLog[MAX_SEGMENTS];   // encoder pulses for each straight section
 float turnLog[MAX_SEGMENTS];      // angle for each turn
 
@@ -52,6 +54,7 @@ int in3=6;
 int in4=9;
 
 void setup() {
+pinMode(ledPin, OUTPUT);
 Serial.begin(115200);
 // object detecting
   pinMode(trigPin, OUTPUT);
@@ -69,7 +72,7 @@ Serial.begin(115200);
   attachInterrupt(digitalPinToInterrupt(encoder), pulse, RISING); // whenever pin 2 sees a RISING edge, immediately run the function pulse()
 
 //remote control car
-  IrReceiver.begin(RemotePin, ENABLE_LED_FEEDBACK);
+  IrReceiver.begin(RemotePin, DISABLE_LED_FEEDBACK);
 
   pinMode(in1, OUTPUT);
   pinMode(in2, OUTPUT);
@@ -81,13 +84,16 @@ Serial.begin(115200);
 }
 
 void loop() {
+  
   //measureObjectDist();
   //Backward();
   if (turning){
     updateGyro();
   }
-
-  
+  //updateGyro();
+  //turn90();
+ // delay(1000000);
+  //navigateObstacle();
 //counting distance
 /*
   noInterrupts();
@@ -104,6 +110,8 @@ void loop() {
 
   delay(200);
 */
+//Serial.print("countForward: ");
+    //Serial.println(countForward);
 
 // remote control car
   if (IrReceiver.decode()) {
@@ -131,6 +139,7 @@ void loop() {
     else if (irValue == 0xF20DFF00) { // fill in value for return button   
       Reverse();
     }
+    else{Serial.println(irValue);}
 
     IrReceiver.resume();
   }
@@ -149,32 +158,42 @@ void pulse() {
 }   
  
 void Reverse() {
+  //digitalWrite(ledPin, HIGH);
+  Serial.println("Reverse");
   Stop(); // This saves the very last segment
   returning = true;
-
+  //Serial.println("Reverse continues");
   // Work backwards through the saved segments
   for (int i = segmentIndex - 1; i >= 0; i--) {
     // 2. UNDO THE DISTANCE
     returningCount = 0;
     while (returningCount < abs(distanceLog[i])) {
+      //Serial.println("Reverse continues1");
       if (distanceLog[i] > 0) {
         Backward(); // If we went forward, go backward
       } else {
         Forward(); // If we went backward, go forward
       }
       measureObjectDist();
-      if (objectDist <= 20){
-        Stop();
+      if (objectDist <= 30){
+        //Stop();
+        Serial.println("Object detected");
+        //delay(100);
+        //turn90();
+        //Stop();
+        navigateObstacle();
+        //Left();
         return;
       }
       // Note: your pulse() function handles returningCount++
       delay(5);
     }
+    //Serial.println("Stop2");
     Stop();
     delay(200);
   // 1. UNDO THE TURN FIRST
     angleZ = 0;
-    prevTime = millis(); // Reset gyro timer
+    //prevTime = millis(); // Reset gyro timer
     while (abs(angleZ) < abs(turnLog[i])) {
       if (turnLog[i] > 0) {
         Right(); // If we turned right originally (+), turn left to go back
@@ -183,6 +202,7 @@ void Reverse() {
       }
       updateGyro();
     }
+    //Serial.println("Stop3");
     Stop();
     delay(200);
   }
@@ -192,8 +212,8 @@ void Reverse() {
 }
 
 void Backward() {
-  prevTime = millis();
-    //Serial.println("Backward");
+  //prevTime = millis();
+    Serial.println("Backward");
     backward = true;
     forward = false;
     turning = false;
@@ -204,8 +224,9 @@ void Backward() {
     digitalWrite(in4,LOW);
   }
 void Forward() {
-  prevTime = millis();
-    //Serial.println("Forward");
+    digitalWrite(ledPin, HIGH);
+  //prevTime = millis();
+    Serial.println("Forward");
     forward = true;
     backward = false;
     turning = false;
@@ -216,6 +237,8 @@ void Forward() {
     digitalWrite(in4,HIGH);
 }
 void Stop() {
+  digitalWrite(ledPin, LOW);
+  Serial.println("stop");
   if (!returning) { // Only save segments during recording, not playback
     saveSegment();
   }
@@ -229,12 +252,13 @@ void Stop() {
   digitalWrite(in4,LOW);
 }
   void Left() {
-  prevTime = millis();
+    Serial.println("left");
+ // prevTime = millis();
   if (!turning && !returning) { // Added !returning here
     saveSegment();
   }
   turning = true;
-      //Serial.println("Left");
+    Serial.println("Left");
     if (backward == true){
       digitalWrite(in1,HIGH);
       digitalWrite(in2,LOW);
@@ -250,12 +274,13 @@ void Stop() {
     
     }
   void Right() {
-    prevTime = millis();
+    Serial.println("right");
+    //prevTime = millis();
     if (!turning && !returning) { // Added !returning here
       saveSegment();
     }
     turning = true;
-      //Serial.println("Right");
+    Serial.println("Right");
     /*if (returning && forward == true){
       digitalWrite(in1,LOW);
       digitalWrite(in2,LOW);
@@ -302,20 +327,18 @@ void updateGyro() {
   int16_t rawZ = Wire.read() << 8 | Wire.read();
 
   gyroZ = (rawZ / 131.0) - gyroZ_offset;  // sensitivity for ±250 deg/s
-  if (abs(gyroZ) < 7) gyroZ = 0;// throw out values that are very small
+  //if (abs(gyroZ) < 7) gyroZ = 0;// throw out values that are very small
 
   unsigned long currentTime = millis();
   float dt = (currentTime - prevTime) / 1000.0;
   prevTime = currentTime;
 
-  angleZ += gyroZ;
-  /*Serial.print("AngleZ = ");
-  Serial.print(angleZ);
+  angleZ += gyroZ * dt;
+  Serial.print("AngleZ = ");
+  Serial.println(angleZ);
   Serial.print("gyroZ = ");
   Serial.println(gyroZ);
-  */
-
-
+  
 }
 
 void calibrateGyro(){
@@ -368,8 +391,51 @@ void saveSegment() {
   countBackward = 0;
   angleZ = 0; // Reset angle so each segment is relative
 
-  prevTime = millis();
+  //prevTime = millis();
   segmentIndex++;
+}
+void navigateObstacle(){
+  Serial.println("navigate Obstacle called");
+  turn90();
+ /* move ---------- turns
+  servo 90 deg turn and check
+  if (no object detected){
+    turn 90 deg
+    
+    While (obect distance ----------){
+      forward
+    }
+    stop
+    turn 90 deg  
+  }
+   */
+}
+void turn90() {
+  Serial.println("turn 90 called");
+  backward = true;
+  angleZ = 0;
+  //prevTime = millis();
+
+  float target = 90.0;
+  float tolerance = 2.0;
+
+  float error = target - abs(angleZ);
+
+  while (error > tolerance) {
+    Left();  
+    updateGyro();
+    delay(10);   // allow time to pass
+
+    error = target - abs(angleZ);
+
+    Serial.print("AngleZ = ");
+    Serial.println(angleZ, 4);
+    Serial.print("error = ");
+    Serial.println(error);
+  }
+
+  Serial.println("90 degrees reached");
+  Stop();
 }
 void measureObjectDist() {
   // Clear the trigger pin
