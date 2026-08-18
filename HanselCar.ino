@@ -397,6 +397,10 @@ void saveSegment() {
 void navigateObstacle(){
   Serial.println("navigate Obstacle called");
   turn90();
+  Forward();
+  delay(10);
+  Stop();
+  turn90();
  /* move ---------- turns
   servo 90 deg turn and check
   if (no object detected){
